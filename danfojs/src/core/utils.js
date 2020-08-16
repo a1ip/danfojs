@@ -1,5 +1,5 @@
-// import * as tf from '@tensorflow/tfjs-node'
-import * as tf from '@tensorflow/tfjs'
+import * as tf from '@tensorflow/tfjs-node'
+// import * as tf from '@tensorflow/tfjs'
 import { Configs } from '../config/config'
 
 
@@ -306,11 +306,13 @@ export class Utils {
                 let string_tracker = []
                 let bool_tracker = []
 
-                //remove NaNs from array
+                //remove NaNs from array before checking dtype
                 let arr = []
                 ele.map(val => {
                     if (!(isNaN(val) && typeof val != "string")) {
                         arr.push(val)
+                    }else{
+                        arr.push("NaN") //set NaN to string and return dtype ""string". The caller should explicitly convert the dtype
                     }
                 })
 
@@ -321,6 +323,7 @@ export class Utils {
                         int_tracker.push(false)
                         string_tracker.push(false)
                         bool_tracker.push(true)
+
                     } else if (!isNaN(Number(ele))) {
 
                         if (ele.toString().includes(".")) {
@@ -658,6 +661,20 @@ export class Utils {
         }
 
         return array.slice(0, num);
+    }
+
+    __sort(arr, ascending=true){
+
+        let collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
+        let sorted = arr.slice()
+
+        if( ascending){
+            return sorted.sort(collator.compare)
+        }else{
+            return sorted.sort((a,b)=> collator.compare(b,a));
+        }
+        
+
     }
 }
 

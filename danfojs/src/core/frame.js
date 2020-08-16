@@ -1,7 +1,7 @@
 import Ndframe from "./generic"
 import { Series } from "./series"
-// import * as tf from '@tensorflow/tfjs-node'
-import * as tf from '@tensorflow/tfjs'
+import * as tf from '@tensorflow/tfjs-node'
+// import * as tf from '@tensorflow/tfjs'
 import { Utils } from "./utils"
 import { GroupBy } from "./groupby"
 import { Plot } from '../plotting/plot'
@@ -33,7 +33,7 @@ export class DataFrame extends Ndframe {
         let col_names = this.column_names
 
         col_vals.forEach((col, i) => {
-            this[col_names[i]] = new Series(col, { columns: col_names[i], index: this.index })
+            this[col_names[i]] = null
             Object.defineProperty(this, col_names[i], {
                 get() {
                     return new Series(this.col_data[i], { columns: col_names[i], index: this.index })
@@ -79,6 +79,9 @@ export class DataFrame extends Ndframe {
                 throw Error("No column found. Axis of 1 must be accompanied by an array of column(s) names")
             }
             let self = this;
+            let new_col_data = {}
+            let new_dtype = []
+
             const index = data.map((x) => {
                 let col_idx = self.columns.indexOf(x)
                 if (col_idx == -1) {
@@ -86,29 +89,27 @@ export class DataFrame extends Ndframe {
                 }
                 return col_idx
             });
-            const values = this.values
-            let new_dtype = []
-            let new_data = values.map(function (element) {
-                let new_arr = utils.__remove_arr(element, index);
-                new_dtype = utils.__remove_arr(self.dtypes, index);
-                return new_arr;
-            });
+
+            this.col_data.forEach((col, idx) => {
+                if (!index.includes(idx)) {
+                    new_col_data[self.column_names[idx]] = col
+                    new_dtype.push(self.dtypes[idx])
+                }
+            })
 
             if (!kwargs['inplace']) {
-                let old_cols = this.columns
-                let columns = utils.__remove_arr(this.columns, index);
-                let df = new DataFrame(new_data, { columns: columns, index: self.index, dtypes: new_dtype })
-                df.__set_col_property(df, df.col_data, columns, old_cols)
+                let old_cols = self.columns
+                let new_columns = Object.keys(new_col_data)
+                let df = new DataFrame(new_col_data, { index: self.index, dtypes: new_dtype })
+                df.__set_col_property(df, df.col_data, new_columns, old_cols)
                 return df
 
             } else {
-                let new_cols = utils.__remove_arr(this.columns, index);
-                let old_cols = this.columns
-                this.columns = new_cols
-                this.row_data_tensor = tf.tensor(new_data);
-                this.data = new_data
-                this.__set_col_types(new_dtype, false)
-                this.__set_col_property(this, this.col_data, new_cols, old_cols)
+                let old_cols = self.columns
+                let new_columns = Object.keys(new_col_data)
+                this.__update_frame_in_place(null, null, new_col_data, null, new_dtype)
+                this.__set_col_property(self, self.col_data, new_columns, old_cols)
+
             }
 
         } else {
@@ -695,7 +696,8 @@ export class DataFrame extends Ndframe {
         let df = new DataFrame([...this.values],
             {
                 columns: [...this.column_names],
-                index: this.index, dtypes: this.dtypes
+                index: this.index,
+                dtypes: this.dtypes
             })
         return df
     }
@@ -716,7 +718,6 @@ export class DataFrame extends Ndframe {
     }
 
     /**
-    * Generate a new DataFrame with the specified index.
     * Set the DataFrame index (row labels) using an array of the same length.
     * @param {kwargs} {index: Array of new index values}
     */
@@ -840,39 +841,55 @@ export class DataFrame extends Ndframe {
     *                           inplace (Bool): Whether to perform sorting on the original Series or not}
     * @returns {Series}
     */
-    sort_values(kwargs = {}) {
-        if (utils.__key_in_object(kwargs, "by")) {
-            let sort_col = this.column(kwargs["by"])
-            let sorted_col, sorted_index;
-            let new_row_data = []
+    // sort_values(kwargs = {}) {
+    //     if (utils.__key_in_object(kwargs, "by")) {
+    //         let sort_col = this.column(kwargs["by"])
+    //         let sorted_col, sorted_index;
+    //         let new_row_data = []
 
-            if (utils.__key_in_object(kwargs, "inplace") && kwargs['inplace'] == true) {
-                sort_col.sort_values(kwargs)
-                sorted_index = sort_col.index
+    //         if (utils.__key_in_object(kwargs, "inplace") && kwargs['inplace'] == true) {
+    //             sort_col.sort_values(kwargs)
+    //             sorted_index = sort_col.index
 
-            } else {
-                sorted_col = sort_col.sort_values(kwargs)
-                sorted_index = sorted_col.index
-            }
+    //         } else {
+    //             sorted_col = sort_col.sort_values(kwargs)
+    //             sorted_index = sorted_col.index
+    //         }
 
-            sorted_index.map(idx => {
-                new_row_data.push(this.values[idx])
-            })
+    //         sorted_index.map(idx => {
+    //             new_row_data.push(this.values[idx])
+    //         })
 
-            if (utils.__key_in_object(kwargs, "inplace") && kwargs['inplace'] == true) {
-                this.data = new_row_data
-                this.index_arr = sorted_index
-                return null
-            } else {
-                let df = new DataFrame(new_row_data, { columns: this.column_names, index: sorted_index, dtype: this.dtypes })
-                return df
-            }
+    //         if (utils.__key_in_object(kwargs, "inplace") && kwargs['inplace'] == true) {
+    //             this.data = new_row_data
+    //             this.index_arr = sorted_index
+    //             return null
+    //         } else {
+    //             let df = new DataFrame(new_row_data, { columns: this.column_names, index: sorted_index, dtype: this.dtypes })
+    //             return df
+    //         }
 
-        } else {
-            throw Error("Value Error: must specify the column to sort by")
-        }
+    //     } else {
+    //         throw Error("Value Error: must specify the column to sort by")
+    //     }
 
-    }
+    //         sorted_index.map(idx => {
+    //             new_row_data.push(this.values[idx])
+    //         })
+
+    //         if (utils.__key_in_object(kwargs, "inplace") && kwargs['inplace'] == true) {
+    //             this.__update_frame_in_place(new_row_data, null, null, sorted_index, null)
+
+    //         } else {
+    //             let df = new DataFrame(new_row_data, { columns: this.column_names, index: sorted_index, dtype: this.dtypes })
+    //             return df
+    //         }
+
+    //     } else {
+    //         throw Error("Value Error: must specify the column to sort by")
+    //     }
+
+    // }
 
 
     /**
@@ -961,12 +978,15 @@ export class DataFrame extends Ndframe {
             "=="
         ]
 
-        if (Object.prototype.hasOwnProperty.call(kwargs, "column")) {
+        if (!utils.__key_in_object(kwargs, "inplace")) {
+            kwargs['inplace'] = false
+        }
 
+        let column_index, operator, value;
 
+        if (utils.__key_in_object(kwargs, "column")) {
             if (this.columns.includes(kwargs["column"])) {
-
-                var column_index = this.columns.indexOf(kwargs["column"]);
+                column_index = this.columns.indexOf(kwargs["column"]);
             } else {
                 throw new Error(`column ${kwargs["column"]} does not exist`);
             }
@@ -974,11 +994,9 @@ export class DataFrame extends Ndframe {
             throw new Error("specify the column");
         }
 
-        if (Object.prototype.hasOwnProperty.call(kwargs, "is")) {
-
+        if (utils.__key_in_object(kwargs, "is")) {
             if (operators.includes(kwargs["is"])) {
-
-                var operator = kwargs["is"];
+                operator = kwargs["is"];
             }
             else {
                 throw new Error(` ${kwargs["is"]} is not a supported logical operator`);
@@ -987,34 +1005,37 @@ export class DataFrame extends Ndframe {
             throw new Error("specify an operator in param [is]");
         }
 
-        if (Object.prototype.hasOwnProperty.call(kwargs, "to")) {
-            var value = kwargs["to"]
+        if (utils.__key_in_object(kwargs, "to")) {
+            value = kwargs["to"]
 
         } else {
             throw new Error("specify a value in param [to]");
         }
 
         let data = this.values
-
+        let index = this.index
         let new_data = []
+        let new_index = []
 
         for (var i = 0; i < data.length; i++) {
             let data_value = data[i]
-
             let elem = data_value[column_index]
-
             //use eval function for easy operation
             //eval() takes in a string expression e.g eval('2>5')
             if (eval(`${elem}${operator}${value}`)) {
                 new_data.push(data_value);
+                new_index.push(index[i])
+
             }
 
-
         }
-        let columns = this.columns
-        let new_df = new DataFrame(new_data, { "columns": columns })
 
-        return new_df;
+        if (kwargs['inplace']) {
+            this.__update_frame_in_place(new_data, this.columns, null, new_index, null)
+        } else {
+            let new_df = new DataFrame(new_data, { "columns": this.columns, index: new_index })
+            return new_df;
+        }
     }
 
 
@@ -1025,34 +1046,33 @@ export class DataFrame extends Ndframe {
      */
     addColumn(kwargs) {
 
-        let data_length = this.shape[0]
-
         utils.__in_object(kwargs, "column", "column name not specified");
         utils.__in_object(kwargs, "value", "column value not specified");
 
-        let value = kwargs["value"]
         let column_name = kwargs["column"]
+        let data_length = this.shape[0]
+        let value;
+
+        if (kwargs['value'] instanceof Series) {
+            value = kwargs['value'].values
+        } else {
+            value = kwargs["value"]
+        }
 
         if (value.length != data_length) {
             throw new Error(`Array length ${value.length} not equal to ${data_length}`);
         }
 
-
         if (this.columns.includes(column_name)) {
-
             let col_idx = this.columns.indexOf(column_name);
-
             let new_data = []
+
             this.values.map((val, index) => {
                 let new_val = val.slice();
                 new_val[col_idx] = value[index]
                 new_data.push(new_val);
             })
-            this.data = new_data;
-            // console.log(this.data)
-            this.col_data[col_idx] = value
-            // this.col_data[col_idx] = utils.__get_t(value)[0]
-            this.data_tensor = tf.tensor(new_data)
+            this.__update_frame_in_place(new_data, null, null, null, null)
 
 
         } else {
@@ -1066,21 +1086,18 @@ export class DataFrame extends Ndframe {
             });
 
             //add new dtype
-            let old_type_list = [...this.dtypes]
-            old_type_list.push(utils.__get_t(value)[0])
-            this.col_types = old_type_list
-            this.data = new_data;
-            this.col_data = utils.__get_col_values(new_data)
-            this.data_tensor = tf.tensor(new_data)
-            let old_col_names = this.columns
-            old_col_names.push(column_name)
-            let new_cols = old_col_names
-            this.columns = new_cols
-            this[column_name] = new Series(value)
-            // this.__set_col_property(this, this.col_data, new_cols, old_col_names,true)
+            let new_dtypes = [...this.dtypes]
+            new_dtypes.push(utils.__get_t(value)[0])
+
+            let new_col_names = [...this.columns]
+            new_col_names.push(column_name)
+
+            this.__update_frame_in_place(new_data, new_col_names, null, null, new_dtypes)
             Object.defineProperty(this, column_name, {
                 get() {
                     return new Series(value, { columns: column_name, index: this.index })
+                }, set(value) {
+                    this.addColumn({ column: column_name, value: value });
                 }
             })
         }
@@ -1092,18 +1109,15 @@ export class DataFrame extends Ndframe {
      */
     groupby(col) {
 
-        let len = this.shape[0] - 1
-
+        let len = this.shape[0]
         let column_names = this.column_names
         let col_dict = {};
         let key_column = null;
 
         if (col.length == 2) {
-
             if (column_names.includes(col[0])) {
                 // eslint-disable-next-line no-unused-vars
                 var [data1, col_name1] = indexLoc(this, { "rows": [`0:${len}`], "columns": [`${col[0]}`], "type": "loc" });
-
             }
             else {
                 throw new Error(`column ${col[0]} does not exist`);
@@ -1185,9 +1199,13 @@ export class DataFrame extends Ndframe {
     */
     fillna(kwargs = {}) {
 
-        let params_needed = ["columns", "values"]
+        let params_needed = ["columns", "values", "inplace"]
         if (!utils.__right_params_are_passed(kwargs, params_needed)) {
             throw Error(`Params Error: A specified parameter is not supported. Your params must be any of the following [${params_needed}], got ${Object.keys(kwargs)}`)
+        }
+
+        if (!utils.__key_in_object(kwargs, "inplace")) {
+            kwargs['inplace'] = false
         }
 
         if (utils.__key_in_object(kwargs, "columns")) {
@@ -1226,7 +1244,12 @@ export class DataFrame extends Ndframe {
                 final_data[this.column_names[i]] = col
             })
 
-            return new DataFrame(final_data, { index: this.index })
+            if (kwargs['inplace']) {
+                this.__update_frame_in_place(null, null, final_data, null, null)
+            } else {
+                return new DataFrame(final_data, { index: this.index })
+
+            }
 
         } else {
             //fill all columns using same value
@@ -1250,8 +1273,7 @@ export class DataFrame extends Ndframe {
                 let row_value = values[i]
                 for (let j = 0; j < row_value.length; j++) {
 
-                    let val = row_value[j] == 0 ? 0 : !!row_value[j]
-                    if (!val) {
+                    if (isNaN(row_value[j]) && typeof row_value[j] != "string" ) {
                         temp_data.push(nan_val)
                     } else {
                         temp_data.push(row_value[j])
@@ -1260,8 +1282,12 @@ export class DataFrame extends Ndframe {
                 }
                 data.push(temp_data);
             }
+            if (kwargs['inplace']) {
+                this.__update_frame_in_place(data, null, null, null, null)
+            } else {
+                return new DataFrame(data, { columns: columns, index: this.index })
 
-            return new DataFrame(data, { columns: columns, index: this.index })
+            }
 
         }
 
@@ -1295,37 +1321,6 @@ export class DataFrame extends Ndframe {
 
         return new DataFrame(new_row_data, { columns: columns, index: this.index })
     }
-
-
-
-    // let new_row_data = []
-    // let row_data = this.values;
-    // let columns = this.column_names;
-
-    // row_data.map(arr=>{
-    //     let temp_arr = []
-    //     arr.map(val=>{
-    //         if (isNaN(val) && typeof val != "string" ){
-    //             temp_arr.push(true)
-    //         }else{
-    //             temp_arr.push(false)
-    //         }
-    //     })
-    //     new_row_data.push(temp_arr)
-    // })
-
-    // // for (let i = 0; i < values.length; i++) {
-    // //     let temp_data = []
-    // //     let row_value = values[i]
-    // //     for (let j = 0; j < row_value.length; j++) {
-
-    // //         let val = row_value[j] == 0 ? true : !row_value[j]
-    // //         temp_data.push(val)
-    // //     }
-    // //     data.push(temp_data);
-    // // }
-
-    // return new DataFrame(new_row_data, { columns: columns, index: this.index })
 
 
     /**
@@ -1867,7 +1862,7 @@ export class DataFrame extends Ndframe {
      * @returns {2D tensor}
      */
     get tensor() {
-        return this.row_data_tensor
+        return tf.tensor(this.values)
     }
 
 
@@ -2021,9 +2016,6 @@ export class DataFrame extends Ndframe {
         if (!utils.__key_in_object(kwargs, "mapper")) {
             throw Error("Please specify a mapper object")
         }
-        this.print()
-        console.log(kwargs['axis']);
-        console.log(kwargs['inplace']);
         if (kwargs['axis'] == 1) {
             //columns
             let old_col_names = Object.keys(kwargs['mapper'])
@@ -2039,19 +2031,13 @@ export class DataFrame extends Ndframe {
                 col_names[idx] = new_col_names[i]
 
             })
-            console.log("Before rename");
-            this.print()
             if (kwargs['inplace']) {
                 this.columns = col_names
                 this.__set_col_property(this, this.col_data, col_names, old_col_names)
-                console.log("after rename inplace");
-                this.print()
             } else {
                 let df = this.copy()
                 df.columns = col_names
                 df.__set_col_property(df, df.col_data, col_names, old_col_names)
-                console.log("after rename not inplace");
-                df.print()
                 return df
             }
         } else {
@@ -2081,6 +2067,57 @@ export class DataFrame extends Ndframe {
 
 
     }
+    /**
+     * Sort DataFrame by index
+     * @param {*} kwargs {inplace: Boolean, ascending: Bool}
+     * @returns DataFrame
+     */
+    sortIndex(kwargs={}){
+
+        let inplace = typeof kwargs["inplace"] == "undefined" ? false : kwargs["inplace"]
+        let asc = typeof kwargs["ascending"] == "undefined" ? true : kwargs["ascending"]
+
+        let index_val = this.index
+        let [data, index] =this.__sort_by(index_val,index_val,asc)
+
+        if(inplace){
+            this.__update_frame_in_place(data,null,null,index,null)
+        }else{
+
+            let df = this.copy()
+            df.__update_frame_in_place(data,null,null,index,null)
+            return df
+        }
+    }
+
+    /**
+    * Sort a Dataframe in ascending or descending order by a specified column name.
+    *  @param {kwargs} Object, {by: Column name to sort by
+    *                           ascending (Bool): Whether to return sorted values in ascending order or not,
+    *                           inplace (Bool): Whether to perform sorting on the original Series or not}
+    * @returns {Series}
+    */
+    sort_values(kwargs={}){
+
+        if (!utils.__key_in_object(kwargs,"by")) {
+            throw Error(`use col_name to specify column name`)
+        }
+
+        let inplace = typeof kwargs["inplace"] == "undefined" ? false : kwargs["inplace"]
+        let asc = typeof kwargs["ascending"] == "undefined" ? true : kwargs["ascending"]
+        let index_val = this.index
+        let column_val = this.column(kwargs["by"]).values
+        let [data, index] = this.__sort_by(column_val,index_val,asc)
+
+        if(inplace){
+            this.__update_frame_in_place(data,null,null,index,null)
+        }else{
+
+            let df = this.copy()
+            df.__update_frame_in_place(data,null,null,index,null)
+            return df
+        }
+    }
 
 
     //set all columns to DataFrame Property. This ensures easy access to columns as Series
@@ -2095,9 +2132,69 @@ export class DataFrame extends Ndframe {
             Object.defineProperty(self, col_names[i], {
                 get() {
                     return new Series(col, { columns: col_names[i], index: self.index })
+                }, set(value) {
+                    this.addColumn({ column: col_names[i], value: value });
                 }
             })
         });
+
+    }
+
+    //update a DataFrame in place
+    __update_frame_in_place(row_data, column_names, col_obj, index, dtypes) {
+        if (row_data != undefined) {
+            this.data = row_data
+        } else {
+            //check column is available and create row from column
+            if (col_obj != undefined) {
+                let _res = utils.__get_row_values(col_obj)
+                this.data = _res[0]
+                this.columns = _res[1]
+                column_names = _res[1]
+            }
+        }
+
+        if (col_obj != undefined) {
+            this.col_data = Object.values(col_obj)
+            this.columns = Object.keys(col_obj)
+            column_names = Object.keys(col_obj)
+        } else {
+            //check if row data is available and create column data from rows
+            if (row_data != undefined) {
+                this.col_data = utils.__get_col_values(row_data) //get column data from row
+            }
+        }
+
+
+        if (column_names != undefined) {
+            this.columns = column_names
+        }
+        if (index != undefined) {
+            this.index_arr = index
+        }
+        if (dtypes != undefined) {
+            this.col_types = dtypes
+        }
+    }
+
+    __sort_by(col_value,df_index, asc){
+
+        let values = this.values
+        
+        
+        let sorted_val = utils.__sort(col_value,asc)
+
+        let data = []
+        let indexs = []
+        for(let row_i=0; row_i < sorted_val.length; row_i++){
+
+            let index = col_value.indexOf(sorted_val[row_i])
+
+            data.push(values[index])
+            indexs.push(df_index[index])
+        }
+        
+        return [data, indexs]
 
     }
 }

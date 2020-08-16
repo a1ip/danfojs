@@ -1,5 +1,5 @@
-// import * as tf from '@tensorflow/tfjs-node'
-import * as tf from '@tensorflow/tfjs'
+import * as tf from '@tensorflow/tfjs-node'
+// import * as tf from '@tensorflow/tfjs'
 import { table } from 'table'
 import { Utils } from './utils'
 import { Configs } from '../config/config'
@@ -25,7 +25,9 @@ export default class NDframe {
 
     constructor(data, kwargs = {}) {
         this.kwargs = kwargs
-
+        if (data instanceof tf.Tensor){
+            data = data.arraySync()
+        }
         if (utils.__is_1D_array(data)) {
             this.series = true
             this.__read_array(data)
