@@ -1,4 +1,3 @@
-//perform plotting
 // import { newPlot } from 'plotly.js' //comment out when building for Node Version
 import { Utils } from "../core/utils"
 import { Series } from "../core/series"
